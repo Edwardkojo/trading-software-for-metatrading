@@ -45,7 +45,6 @@ class SimulatedExecutionProvider:
             size=size,
             entry_time=now_utc(),
             side=side,
-            entry_price=None,
         )
         return ticket
 

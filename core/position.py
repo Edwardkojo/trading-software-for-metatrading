@@ -21,3 +21,4 @@ class TradePosition:
     def __post_init__(self) -> None:
         self.entry_time = ensure_timezone(self.entry_time)
 
+

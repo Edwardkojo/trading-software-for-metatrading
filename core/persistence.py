@@ -165,3 +165,4 @@ class SessionLogger:
             f.write(f"Max drawdown: {snapshot.max_drawdown:.2f}\n")
             f.write(f"Sharpe ratio: {snapshot.sharpe_ratio:.2f}\n")
 
+
