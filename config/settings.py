@@ -65,10 +65,18 @@ def load_config(path: Path | None = None) -> AppConfig:
     if env_deviation is not None:
         mt5_data["deviation"] = int(env_deviation)
 
+    # Convert login to int if it's a string or number
+    login_value = mt5_data.get("login")
+    if login_value is not None:
+        try:
+            login_value = int(login_value)
+        except (ValueError, TypeError):
+            login_value = None
+    
     return AppConfig(
         use_mt5=data.get("use_mt5", False),
         mt5=MT5Settings(
-            login=mt5_data.get("login"),
+            login=login_value,
             password=mt5_data.get("password"),
             server=mt5_data.get("server"),
             deviation=mt5_data.get("deviation", 10),

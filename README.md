@@ -23,7 +23,17 @@ A fully automated Forex trading system that connects to MetaTrader 5, runs tradi
 pip install -r requirements.txt
 ```
 
-### 2. Configure MT5 Credentials
+### 2. Set Up MetaTrader 5
+
+**Important:** Before using the bot with MT5, you must:
+
+1. Install and open MetaTrader 5 terminal
+2. Log in to your trading account in the terminal
+3. Enable automated trading (Tools → Options → Expert Advisors)
+
+See [MT5_SETUP.md](MT5_SETUP.md) for detailed setup instructions.
+
+### 3. Configure MT5 Credentials
 
 Edit `config/default.json` or set environment variables:
 
@@ -31,7 +41,7 @@ Edit `config/default.json` or set environment variables:
 {
   "use_mt5": true,
   "mt5": {
-    "login": "YOUR_LOGIN",
+    "login": 12345678,
     "password": "YOUR_PASSWORD",
     "server": "YOUR_SERVER",
     "deviation": 10
@@ -39,24 +49,38 @@ Edit `config/default.json` or set environment variables:
 }
 ```
 
+**Note:** `login` must be a number (your account number), not a string.
+
 Or use environment variables:
 ```bash
 export TRADIN_USE_MT5=1
-export TRADIN_MT5_LOGIN=your_login
+export TRADIN_MT5_LOGIN=12345678
 export TRADIN_MT5_PASSWORD=your_password
 export TRADIN_MT5_SERVER=your_server
 ```
 
-### 3. Test MT5 Connection
+### 4. Test MT5 Connection
 
 ```bash
+# Diagnostic check
+python scripts/diagnose_mt5.py
+
+# Full connection test
 python scripts/test_mt5_connection.py
 ```
 
-### 4. Run the Bot
+### 5. Run the Bot
 
-**Paper Trading:**
+**Paper Trading (Simulated):**
 ```bash
+# Set to use simulated mode
+export TRADIN_USE_MT5=0
+python scripts/run_bot.py
+```
+
+**Live Trading (MT5):**
+```bash
+# Make sure MT5 terminal is running and logged in
 python scripts/run_bot.py
 ```
 
