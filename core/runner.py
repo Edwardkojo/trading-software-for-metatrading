@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Dict, List
 
 from .data_handler import MarketDataProvider
+from .persistence import SessionLogger, TradeDatabase
 from .trading_engine import TradingEngine
 from .utils import configure_logger, ensure_timezone, now_utc
 
@@ -36,6 +37,9 @@ class LiveRunner:
         self.running = False
         self.prices: Dict[str, List[float]] = {symbol: [] for symbol in symbols}
         self.logger = configure_logger("live_runner")
+        self.db = TradeDatabase()
+        self.session_logger = SessionLogger()
+        self.session_id: str | None = None
 
     def start(self) -> None:
         """
@@ -48,6 +52,8 @@ class LiveRunner:
             self.poll_interval,
         )
         self.running = True
+        self.session_id = self.session_logger.start_session()
+        self.logger.info("Session ID: %s", self.session_id)
         self._warmup()
 
         loop_count = 0
@@ -59,6 +65,13 @@ class LiveRunner:
 
                 if loop_count % 5 == 0:
                     self.logger.info("Heartbeat: %s loops processed", loop_count)
+                    if self.session_id:
+                        snapshot = self.engine.metrics.snapshot()
+                        self.db.save_snapshot(snapshot)
+                        self.session_logger.log_event(
+                            self.session_id,
+                            f"Heartbeat: {loop_count} loops, {len(self.engine.positions)} positions",
+                        )
 
                 time.sleep(self.poll_interval)
         except KeyboardInterrupt:
@@ -99,6 +112,10 @@ class LiveRunner:
             price_list.pop(0)
 
         try:
+            # Check trailing stops first
+            self.engine.check_trailing_stops(symbol, tick.bid)
+            
+            # Process new signals
             self.engine.process(symbol, price_list.copy(), ensure_timezone(tick.time))
         except Exception as exc:
             self.logger.exception("Processing error for %s: %s", symbol, exc)
@@ -109,6 +126,13 @@ class LiveRunner:
         """
         open_positions = len(self.engine.positions)
         equity = self.engine.risk_manager.limits.account_balance
+        snapshot = self.engine.metrics.snapshot()
+        
+        # Save final snapshot and close session
+        if self.session_id:
+            self.db.save_snapshot(snapshot)
+            self.session_logger.end_session(self.session_id, open_positions, snapshot)
+        
         self.logger.info(
             "Runner stopping. Loops=%s OpenPositions=%s Equity=%.2f",
             loops,

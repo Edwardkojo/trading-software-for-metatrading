@@ -9,7 +9,10 @@ from datetime import datetime
 from typing import Dict, List, Protocol
 
 from .data_handler import MarketDataProvider
+from .persistence import TradeDatabase
+from .position import TradePosition
 from .risk_manager import RiskManager, TradeResult
+from .trailing_stop import TrailingStopConfig, TrailingStopManager
 from .utils import configure_logger, ensure_timezone, now_utc
 from .metrics import MetricsTracker
 
@@ -22,17 +25,6 @@ class ExecutionProvider(Protocol):
         ...
 
 
-@dataclass
-class TradePosition:
-    ticket: str
-    symbol: str
-    size: float
-    entry_time: datetime
-    side: str
-    entry_price: float | None = None
-
-    def __post_init__(self) -> None:
-        self.entry_time = ensure_timezone(self.entry_time)
 
 
 class SimulatedExecutionProvider:
@@ -162,6 +154,8 @@ class TradingEngine:
         self.positions: Dict[str, TradePosition] = {}
         self.logger = configure_logger("trading_engine")
         self.metrics = MetricsTracker()
+        self.db = TradeDatabase()
+        self.trailing_stop = TrailingStopManager(TrailingStopConfig())
 
     def process(self, symbol: str, prices: List[float], timestamp: datetime) -> None:
         signal = self.strategy.generate_signal(prices, symbol, timestamp)
@@ -183,7 +177,24 @@ class TradingEngine:
         )
         self.positions[ticket] = position
         self.risk_manager.register_trade_open(symbol, size)
+        
+        # Register with trailing stop manager
+        current_price = prices[-1] if prices else 0.0
+        self.trailing_stop.register_position(ticket, position, current_price)
+        
         self.logger.info("Opened %s trade for %s size %.2f", signal.side, symbol, size)
+
+    def check_trailing_stops(self, symbol: str, current_price: float) -> None:
+        """Check and trigger trailing stops for open positions."""
+        tickets_to_close = []
+        for ticket, position in self.positions.items():
+            if position.symbol == symbol:
+                if self.trailing_stop.update(ticket, position, current_price):
+                    tickets_to_close.append(ticket)
+        
+        for ticket in tickets_to_close:
+            self.logger.info("Trailing stop triggered for %s", ticket)
+            self.close_position(ticket)
 
     def close_position(self, ticket: str) -> None:
         if ticket not in self.positions:
@@ -191,5 +202,7 @@ class TradingEngine:
         trade_result = self.execution_provider.close_position(ticket)
         self.risk_manager.register_trade_close(trade_result)
         self.metrics.add_trade(trade_result)
+        self.db.save_trade(trade_result)
+        self.trailing_stop.remove(ticket)
         del self.positions[ticket]
 

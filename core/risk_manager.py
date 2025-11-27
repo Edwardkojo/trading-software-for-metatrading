@@ -70,14 +70,39 @@ class RiskManager:
 
         return True
 
-    def position_size(self, stop_loss_pips: float, pip_value: float) -> float:
+    def position_size(
+        self,
+        stop_loss_pips: float,
+        pip_value: float,
+        volatility_multiplier: float = 1.0,
+        win_streak_bonus: bool = False,
+    ) -> float:
         """
-        Calculate position size using simple fixed-fraction formula.
+        Calculate position size with optional dynamic adjustments.
+        
+        Args:
+            stop_loss_pips: Stop loss distance in pips
+            pip_value: Value per pip for the symbol
+            volatility_multiplier: Adjust size based on volatility (1.0 = normal)
+            win_streak_bonus: If True, increase size after consecutive wins
         """
         if stop_loss_pips <= 0 or pip_value <= 0:
             raise ValueError("stop_loss_pips and pip_value must be positive")
-        risk_amount = self.limits.account_balance * self.limits.risk_per_trade
-        size = risk_amount / (stop_loss_pips * pip_value)
+        
+        base_risk = self.limits.account_balance * self.limits.risk_per_trade
+        
+        # Adjust for volatility (lower size in high volatility)
+        adjusted_risk = base_risk / max(0.5, volatility_multiplier)
+        
+        # Win streak bonus (increase size after wins, but cap at 2x)
+        if win_streak_bonus:
+            recent_wins = sum(
+                1 for t in self.trade_history[-5:] if t.profit > 0
+            )
+            streak_multiplier = min(2.0, 1.0 + (recent_wins * 0.1))
+            adjusted_risk *= streak_multiplier
+        
+        size = adjusted_risk / (stop_loss_pips * pip_value)
         return max(0.01, round(size, 2))
 
     def register_trade_open(self, symbol: str, size: float) -> None:
