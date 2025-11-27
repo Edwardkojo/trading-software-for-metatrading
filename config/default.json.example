@@ -1,0 +1,15 @@
+{
+  "use_mt5": false,
+  "mt5": {
+    "login": null,
+    "password": null,
+    "server": null,
+    "deviation": 10
+  },
+  "symbols": ["EURUSD"],
+  "timeframe_minutes": 5,
+  "poll_interval_seconds": 5,
+  "warmup_bars": 200,
+  "run_mode": "paper"
+}
+
